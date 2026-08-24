@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bandhan-E-Pyar | Virtual Raksha Bandhan Express</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Firebase Firestore Integration for 6-Digit Card Codes -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'raksha-bandhan-express';
+        let db = null;
+        let auth = null;
+
+        async function initFirebase() {
+            try {
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    const config = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+                    const app = initializeApp(config);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                }
+            } catch (e) {
+                console.warn("Firestore initialization fallback to local storage:", e);
+            }
+        }
+
+        window.saveCardToCloud = async function(code, cardData) {
+            try {
+                localStorage.setItem('rakhi_card_' + code, JSON.stringify(cardData));
+            } catch(e){
+                console.warn("Storage error:", e);
+            }
+
+            if (db) {
+                try {
+                    const cardRef = doc(db, 'artifacts', appId, 'public', 'data', 'cards', code);
+                    setDoc(cardRef, { ...cardData, createdAt: new Date().toISOString() })
+                        .catch(err => console.warn("Firestore save error:", err));
+                    return true;
+                } catch (err) {
+                    console.warn("Firestore save error:", err);
+                }
+            }
+            return true;
+        };
+
+        window.getCardFromCloud = async function(code) {
+            try {
+                const local = localStorage.getItem('rakhi_card_' + code);
+                if (local) return JSON.parse(local);
+            } catch(e){}
+
+            if (db) {
+                try {
+                    const cardRef = doc(db, 'artifacts', appId, 'public', 'data', 'cards', code);
+                    const snapPromise = getDoc(cardRef);
+                    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 2500));
+                    const snap = await Promise.race([snapPromise, timeoutPromise]);
+                    if (snap && snap.exists && snap.exists()) {
+                        return snap.data();
+                    }
+                } catch (err) {
+                    console.warn("Firestore fetch error:", err);
+                }
+            }
+            return null;
+        };
+
+        initFirebase();
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        saffron: {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            300: '#fde047',
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309'
+                        },
+                        maroon: {
+                            800: '#3f0713',
+                            900: '#27040b',
+                            950: '#150205'
+                        },
+                        festiveGold: '#eab308',
+                        warmRose: '#be123c'
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                        royal: ['Cinzel', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #150205;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(217, 119, 6, 0.22) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(190, 18, 60, 0.25) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(39, 4, 11, 0.95) 0%, transparent 100%);
+            color: #fef3c7;
+            min-height: 100vh;
+        }
+
+        .gold-text {
+            background: linear-gradient(135deg, #fef08a 0%, #f59e0b 50%, #d97706 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .glass-card {
+            background: rgba(39, 4, 11, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+
+        .glass-card-hover {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card-hover:hover {
+            border-color: rgba(245, 158, 11, 0.8);
+            box-shadow: 0 12px 32px -8px rgba(245, 158, 11, 0.35);
+        }
+
+        .active-toggle-card {
+            border-color: #f59e0b !important;
+            background: rgba(180, 83, 9, 0.25) !important;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.35) !important;
+        }
+
+        #particleCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes flameFlicker {
+            0% { transform: scale(0.95) rotate(-3deg); filter: drop-shadow(0 0 6px #f59e0b); }
+            50% { transform: scale(1.1) rotate(3deg); filter: drop-shadow(0 0 14px #ef4444); }
+            100% { transform: scale(0.98) rotate(-1deg); filter: drop-shadow(0 0 9px #fbbf24); }
+        }
+        .flame-anim {
+            animation: flameFlicker 0.7s infinite alternate ease-in-out;
+        }
+
+        /* 2-HANDS RAKHI TYING ANIMATION */
+        @keyframes sisterHandMove {
+            0% { transform: translate(-40px, -20px) rotate(-8deg); opacity: 0.8; }
+            40% { transform: translate(15px, 0px) rotate(0deg); opacity: 1; }
+            70% { transform: translate(0px, 5px) rotate(2deg); }
+            100% { transform: translate(-10px, 0px) rotate(0deg); }
+        }
+        .animate-sister-hand {
+            animation: sisterHandMove 3.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes rakhiBindGlow {
+            0% { filter: drop-shadow(0 0 2px #f59e0b); transform: scale(0.92); }
+            50% { filter: drop-shadow(0 0 16px #f59e0b) drop-shadow(0 0 25px #ef4444); transform: scale(1.08); }
+            100% { filter: drop-shadow(0 0 6px #fbbf24); transform: scale(1); }
+        }
+        .animate-rakhi-glow {
+            animation: rakhiBindGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes tilakFadeIn {
+            0% { opacity: 0; transform: scale(0); }
+            60% { opacity: 1; transform: scale(1.4); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-tilak {
+            animation: tilakFadeIn 1.5s ease-out forwards;
+        }
+
+        /* Smooth custom scrollbars for modal & card viewports */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(21, 2, 5, 0.8);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(245, 158, 11, 0.4);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(245, 158, 11, 0.8);
+        }
+    </style>
+</head>
+<body class="font-sans antialiased selection:bg-saffron-500 selection:text-black relative overflow-x-hidden">
+
+    <!-- Background Particle Canvas -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Non-blocking Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="glass-card px-5 py-3 rounded-2xl border border-saffron-400 text-saffron-200 text-xs md:text-sm font-medium flex items-center gap-3 shadow-2xl">
+            <span class="text-xl text-saffron-400" id="toastIcon">✨</span>
+            <span id="toastMsg">Action completed successfully!</span>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="sticky top-0 z-40 glass-card border-b border-saffron-500/20 px-4 md:px-8 py-3">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateTo('landing')">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-saffron-500 to-warmRose flex items-center justify-center text-xl shadow-lg shadow-saffron-500/20">
+                    🪔
+                </div>
+                <div>
+                    <h1 class="font-royal text-base md:text-lg font-bold tracking-wide gold-text">Bandhan-E-Pyar</h1>
+                    <p class="text-[10px] text-saffron-200/70 tracking-widest uppercase font-medium">Virtual Rakhi & Gift Express for All Siblings</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <button onclick="navigateTo('landing')" class="px-4 py-1.5 rounded-full bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs transition shadow-lg">
+                    <i class="fas fa-home mr-1"></i> Home
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="relative z-10 max-w-5xl mx-auto px-4 py-6 md:py-8 min-h-[calc(100vh-80px)]">
+
+        <!-- ================= LANDING PAGE ================= -->
+        <section id="tab-landing" class="tab-content transition-all duration-300">
+            <div class="text-center max-w-2xl mx-auto my-4 md:my-6 space-y-5">
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-saffron-500/10 border border-saffron-500/30 text-saffron-300 text-xs font-medium">
+                    <span>🌸 Celebrate Sister-Brother, Sister-Sister & Brother-Brother Love 🌸</span>
+                </div>
+
+                <h1 class="font-royal text-2xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
+                    Exchange <span class="gold-text">Rakhis, Gifts & Virtual Letters</span> Across Any Distance
+                </h1>
+
+                <p class="text-saffron-100/80 text-xs md:text-sm font-light leading-relaxed max-w-lg mx-auto">
+                    Design custom virtual Rakhis, sweet thali, return gift vouchers, and write heartfelt letters with an authentic ceremony for every bond!
+                </p>
+
+                <!-- Input to Open Shared Card -->
+                <div class="pt-1 max-w-md mx-auto">
+                    <div class="glass-card p-2 rounded-2xl border border-saffron-500/30 flex items-center gap-2">
+                        <input id="sharedCodeInput" type="text" placeholder="Enter 6-digit code (e.g. 739214) or paste link..." class="w-full bg-maroon-900/90 border border-saffron-500/20 focus:border-saffron-400 text-saffron-100 text-xs rounded-xl px-3 py-2.5 focus:outline-none tracking-wider placeholder:font-normal placeholder:tracking-normal">
+                        <button onclick="loadCardFromInput()" class="px-4 py-2.5 bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs rounded-xl transition whitespace-nowrap shadow-lg">
+                            <i class="fas fa-envelope-open mr-1"></i> Open Card
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Relationship Dynamic Selector Cards -->
+                <div class="pt-4">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-saffron-400 mb-3">Select Your Sibling Bond & Flow:</h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        
+                        <!-- Sister to Brother -->
+                        <div onclick="selectRelationshipFlow('sister-brother')" id="relCard-sister-brother" class="rel-card glass-card glass-card-hover p-4 rounded-2xl cursor-pointer text-left relative overflow-hidden active-toggle-card">
+                            <div class="text-2xl mb-1">🌸 ➔ 👦</div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-saffron-400 block">Sister to Brother</span>
+                            <h4 class="font-royal text-sm font-bold text-white mt-1">Rakhi & Sweets</h4>
+                            <p class="text-[10px] text-saffron-100/70 mt-1">Send virtual Rakhi, sweet thali & letter</p>
+                        </div>
+
+                        <!-- Sister to Sister -->
+                        <div onclick="selectRelationshipFlow('sister-sister')" id="relCard-sister-sister" class="rel-card glass-card glass-card-hover p-4 rounded-2xl cursor-pointer text-left relative overflow-hidden">
+                            <div class="text-2xl mb-1">🌸 ➔ 👧</div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-saffron-400 block">Sister to Sister</span>
+                            <h4 class="font-royal text-sm font-bold text-white mt-1">Sisterhood Rakhi</h4>
+                            <p class="text-[10px] text-saffron-100/70 mt-1">Rakhi / Sisterband, treats & promise letter</p>
+                        </div>
+
+                        <!-- Brother to Sister -->
+                        <div onclick="selectRelationshipFlow('brother-sister')" id="relCard-brother-sister" class="rel-card glass-card glass-card-hover p-4 rounded-2xl cursor-pointer text-left relative overflow-hidden">
+                            <div class="text-2xl mb-1">🎁 ➔ 👧</div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-saffron-400 block">Brother to Sister</span>
+                            <h4 class="font-royal text-sm font-bold text-white mt-1">Return Gift & Shagun</h4>
+                            <p class="text-[10px] text-saffron-100/70 mt-1">Send gift box, vouchers, cash & note</p>
+                        </div>
+
+                        <!-- Brother to Brother -->
+                        <div onclick="selectRelationshipFlow('brother-brother')" id="relCard-brother-brother" class="rel-card glass-card glass-card-hover p-4 rounded-2xl cursor-pointer text-left relative overflow-hidden">
+                            <div class="text-2xl mb-1">🤝 ➔ 👦</div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-saffron-400 block">Brother to Brother</span>
+                            <h4 class="font-royal text-sm font-bold text-white mt-1">Bro Bond & Treats</h4>
+                            <p class="text-[10px] text-saffron-100/70 mt-1">Send wristband, bro promise & treats</p>
+                        </div>
+
+                    </div>
+
+                    <!-- Flow Launcher Button -->
+                    <div class="pt-5">
+                        <button onclick="startSelectedFlow()" class="px-8 py-3.5 rounded-full bg-gradient-to-r from-saffron-500 via-amber-500 to-warmRose text-maroon-950 font-extrabold text-sm hover:scale-105 transition transform shadow-2xl flex items-center justify-center space-x-2 mx-auto">
+                            <span id="selectedFlowBtnText">Start Sister to Brother Express</span>
+                            <i class="fas fa-arrow-right text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= RAKHI SENDER FLOW ================= -->
+        <section id="tab-rakhi-flow" class="tab-content hidden transition-all duration-300">
+            <!-- Navigation Steps Breadcrumb -->
+            <div class="flex items-center justify-center space-x-2 md:space-x-3 mb-6 overflow-x-auto py-2">
+                <button onclick="setRakhiStep(1)" id="stepBtn-rak-1" class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition border border-saffron-500/30 whitespace-nowrap bg-saffron-500 text-maroon-950">
+                    1. 🪔 Select Virtual Rakhi
+                </button>
+                <i class="fas fa-chevron-right text-[10px] text-saffron-500/40"></i>
+                <button onclick="setRakhiStep(2)" id="stepBtn-rak-2" class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition border border-saffron-500/30 opacity-60 whitespace-nowrap">
+                    2. 🍬 Sweet Thali & Treats
+                </button>
+                <i class="fas fa-chevron-right text-[10px] text-saffron-500/40"></i>
+                <button onclick="setRakhiStep(3)" id="stepBtn-rak-3" class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition border border-saffron-500/30 opacity-60 whitespace-nowrap">
+                    3. ✉️ Letter & Share
+                </button>
+            </div>
+
+            <!-- Step 1: Select Rakhi -->
+            <div id="rakhi-step-1" class="rakhi-step space-y-6">
+                <div class="text-center max-w-lg mx-auto">
+                    <h2 class="font-royal text-xl md:text-2xl font-bold gold-text" id="rakhiStepHeaderTitle">Choose Virtual Rakhi</h2>
+                    <p class="text-xs text-saffron-100/70 mt-1">Select design & silk thread color. (Optional step)</p>
+                </div>
+
+                <!-- Rakhi Gallery Grid -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto">
+                    <div onclick="selectRakhi(0)" id="rakhiCard-0" class="rakhi-card glass-card p-4 rounded-2xl border-2 border-saffron-400 active-toggle-card cursor-pointer text-center transition">
+                        <div class="h-28 flex items-center justify-center" id="rakhiSvgContainer-0"></div>
+                        <h4 class="font-bold text-xs text-saffron-300 mt-2">Royal Kundan Gold</h4>
+                        <p class="text-[10px] text-saffron-200/60">Ruby Mandala</p>
+                    </div>
+
+                    <div onclick="selectRakhi(1)" id="rakhiCard-1" class="rakhi-card glass-card p-4 rounded-2xl border-2 border-transparent cursor-pointer text-center transition">
+                        <div class="h-28 flex items-center justify-center" id="rakhiSvgContainer-1"></div>
+                        <h4 class="font-bold text-xs text-saffron-300 mt-2">Peacock Emerald</h4>
+                        <p class="text-[10px] text-saffron-200/60">Turquoise Floral</p>
+                    </div>
+
+                    <div onclick="selectRakhi(2)" id="rakhiCard-2" class="rakhi-card glass-card p-4 rounded-2xl border-2 border-transparent cursor-pointer text-center transition">
+                        <div class="h-28 flex items-center justify-center" id="rakhiSvgContainer-2"></div>
+                        <h4 class="font-bold text-xs text-saffron-300 mt-2">Marigold Lotus</h4>
+                        <p class="text-[10px] text-saffron-200/60">Saffron Bloom</p>
+                    </div>
+
+                    <div onclick="selectRakhi(3)" id="rakhiCard-3" class="rakhi-card glass-card p-4 rounded-2xl border-2 border-transparent cursor-pointer text-center transition">
+                        <div class="h-28 flex items-center justify-center" id="rakhiSvgContainer-3"></div>
+                        <h4 class="font-bold text-xs text-saffron-300 mt-2">Diamond Crystal</h4>
+                        <p class="text-[10px] text-saffron-200/60">Rose Sparkle</p>
+                    </div>
+                </div>
+
+                <!-- Custom Thread Color Selector -->
+                <div class="glass-card p-3 rounded-2xl max-w-md mx-auto flex items-center justify-between gap-3">
+                    <span class="text-xs text-saffron-200 font-medium">Silk Thread Color:</span>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="changeThreadColor('#ef4444')" class="w-6 h-6 rounded-full bg-red-500 ring-2 ring-white/30 hover:scale-110 transition" title="Red Thread"></button>
+                        <button onclick="changeThreadColor('#f59e0b')" class="w-6 h-6 rounded-full bg-amber-500 ring-2 ring-white/30 hover:scale-110 transition" title="Yellow Thread"></button>
+                        <button onclick="changeThreadColor('#10b981')" class="w-6 h-6 rounded-full bg-emerald-500 ring-2 ring-white/30 hover:scale-110 transition" title="Green Thread"></button>
+                        <button onclick="changeThreadColor('#ec4899')" class="w-6 h-6 rounded-full bg-pink-500 ring-2 ring-white/30 hover:scale-110 transition" title="Pink Thread"></button>
+                        <button onclick="changeThreadColor('#8b5cf6')" class="w-6 h-6 rounded-full bg-purple-500 ring-2 ring-white/30 hover:scale-110 transition" title="Purple Thread"></button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between max-w-md mx-auto pt-2">
+                    <button onclick="navigateTo('landing')" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:underline">
+                        <i class="fas fa-arrow-left mr-1"></i> Home
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="setRakhiStep(2)" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:text-white">
+                            Skip
+                        </button>
+                        <button onclick="setRakhiStep(2)" class="px-5 py-2.5 bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs rounded-xl transition shadow-lg flex items-center space-x-1.5">
+                            <span>Next: Sweets</span>
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Decorate Sweet Thali -->
+            <div id="rakhi-step-2" class="rakhi-step hidden space-y-6">
+                <div class="text-center max-w-lg mx-auto">
+                    <h2 class="font-royal text-xl md:text-2xl font-bold gold-text">Decorate Sweet Thali</h2>
+                    <p class="text-xs text-saffron-100/70 mt-1">Select traditional Indian sweets to offer. (Optional step)</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center max-w-3xl mx-auto">
+                    <div class="glass-card p-6 rounded-3xl border border-saffron-500/30 text-center flex flex-col items-center justify-center">
+                        <div class="w-48 h-48 rounded-full border-4 border-saffron-400/80 bg-gradient-to-tr from-maroon-950 to-saffron-950 p-3 shadow-2xl flex flex-col items-center justify-center relative">
+                            <div class="text-3xl my-1 flame-anim">🪔</div>
+                            <span class="text-[9px] text-saffron-200 tracking-widest uppercase font-semibold">Virtual Pooja Thali</span>
+                            <div id="thaliSweetsPreview" class="flex flex-wrap justify-center gap-2 max-w-[140px] my-2">
+                                <span class="text-xl" title="Kaju Katli">🥮</span>
+                                <span class="text-xl" title="Laddoo">🧆</span>
+                            </div>
+                            <span class="text-[9px] text-saffron-300/80 italic">Kumkum Roli & Rice Included</span>
+                        </div>
+                    </div>
+
+                    <!-- Clear Visual Toggle Controls -->
+                    <div class="space-y-3">
+                        <div onclick="toggleSweet('Kaju Katli')" id="sweetToggle-Kaju Katli" class="sweet-toggle-card glass-card p-3.5 rounded-xl border-2 border-saffron-400 active-toggle-card flex items-center justify-between cursor-pointer transition">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-2xl">🥮</span>
+                                <div>
+                                    <h5 class="font-bold text-xs text-saffron-100">Kaju Katli</h5>
+                                    <p class="text-[10px] text-saffron-200/60">Rich cashew diamond sweet</p>
+                                </div>
+                            </div>
+                            <span id="sweetBadge-Kaju Katli" class="text-xs font-bold text-saffron-400"><i class="fas fa-check-circle text-base"></i></span>
+                        </div>
+
+                        <div onclick="toggleSweet('Motichoor Laddoo')" id="sweetToggle-Motichoor Laddoo" class="sweet-toggle-card glass-card p-3.5 rounded-xl border-2 border-saffron-400 active-toggle-card flex items-center justify-between cursor-pointer transition">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-2xl">🧆</span>
+                                <div>
+                                    <h5 class="font-bold text-xs text-saffron-100">Motichoor Laddoo</h5>
+                                    <p class="text-[10px] text-saffron-200/60">Festive golden sweet ball</p>
+                                </div>
+                            </div>
+                            <span id="sweetBadge-Motichoor Laddoo" class="text-xs font-bold text-saffron-400"><i class="fas fa-check-circle text-base"></i></span>
+                        </div>
+
+                        <div onclick="toggleSweet('Gulab Jamun')" id="sweetToggle-Gulab Jamun" class="sweet-toggle-card glass-card p-3.5 rounded-xl border-2 border-transparent flex items-center justify-between cursor-pointer transition">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-2xl">🍩</span>
+                                <div>
+                                    <h5 class="font-bold text-xs text-saffron-100">Gulab Jamun</h5>
+                                    <p class="text-[10px] text-saffron-200/60">Juicy syrup delicacy</p>
+                                </div>
+                            </div>
+                            <span id="sweetBadge-Gulab Jamun" class="text-xs font-bold text-saffron-500/30"><i class="far fa-circle text-base"></i></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between max-w-md mx-auto pt-2">
+                    <button onclick="setRakhiStep(1)" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:underline">
+                        <i class="fas fa-arrow-left mr-1"></i> Back
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="setRakhiStep(3)" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:text-white">
+                            Skip
+                        </button>
+                        <button onclick="setRakhiStep(3)" class="px-5 py-2.5 bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs rounded-xl transition shadow-lg flex items-center space-x-1.5">
+                            <span>Next: Letter</span>
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Letter Writer & Card Generation -->
+            <div id="rakhi-step-3" class="rakhi-step hidden space-y-6">
+                <div class="text-center max-w-lg mx-auto">
+                    <h2 class="font-royal text-xl md:text-2xl font-bold gold-text">Letter & Wishes</h2>
+                    <p class="text-xs text-saffron-100/70 mt-1">Write your heartfelt message or pick a quick template!</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">Your Name (Sender):</label>
+                                <input id="rakSenderName" type="text" value="Priya" class="w-full bg-maroon-900 border border-saffron-500/30 text-saffron-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-saffron-400">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">Receiver's Name:</label>
+                                <input id="rakReceiverName" type="text" value="Rahul" class="w-full bg-maroon-900 border border-saffron-500/30 text-saffron-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-saffron-400">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">Quick Templates:</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="applyRakTemplate(1)" class="p-2 text-left bg-saffron-500/10 hover:bg-saffron-500/20 border border-saffron-500/20 rounded-lg text-[10px] text-saffron-200 transition">
+                                    ❤️ Loving Wishes
+                                </button>
+                                <button onclick="applyRakTemplate(2)" class="p-2 text-left bg-saffron-500/10 hover:bg-saffron-500/20 border border-saffron-500/20 rounded-lg text-[10px] text-saffron-200 transition">
+                                    😜 Playful Memories
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">Letter Content:</label>
+                            <textarea id="rakLetterBody" rows="4" class="w-full bg-maroon-900 border border-saffron-500/30 text-saffron-100 rounded-xl p-3 text-xs focus:outline-none focus:border-saffron-400 leading-relaxed" placeholder="Write message...">Through every childhood memory and secret, you have been my forever protector and best friend! Happy Raksha Bandhan!</textarea>
+                        </div>
+
+                        <!-- Photo Attachment Section -->
+                        <div class="pt-1">
+                            <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">🖼️ Attach a Memory Photo (Optional):</label>
+                            <div class="flex items-center gap-2">
+                                <label class="cursor-pointer px-3 py-2 bg-saffron-500/20 border border-saffron-500/40 hover:bg-saffron-500/30 text-saffron-200 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
+                                    <i class="fas fa-camera"></i> Choose Photo
+                                    <input type="file" id="rakPhotoInput" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
+                                </label>
+                                <button id="removePhotoBtn" onclick="removeAttachedPhoto()" class="hidden text-xs text-red-400 hover:underline">Remove</button>
+                            </div>
+                            <div id="rakPhotoPreviewBox" class="mt-2 hidden">
+                                <img id="rakPhotoPreviewImg" class="w-24 h-24 object-cover rounded-xl border border-saffron-400 shadow-md">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Card Preview -->
+                    <div class="glass-card p-5 rounded-3xl border border-saffron-400/40 text-center relative flex flex-col justify-between">
+                        <div>
+                            <span class="font-royal text-base gold-text block font-bold">Shubh Raksha Bandhan</span>
+                            <div id="rakhiPreviewIcon" class="w-16 h-16 mx-auto my-2 flex items-center justify-center"></div>
+                            
+                            <!-- Attached Photo Preview in Card -->
+                            <div id="cardPreviewPhotoContainer" class="hidden my-2">
+                                <img id="cardPreviewPhotoImg" class="w-28 h-28 object-cover mx-auto rounded-xl border border-saffron-400 shadow-lg">
+                            </div>
+
+                            <p class="text-xs italic font-serif text-saffron-100/90 bg-maroon-950/50 p-3 rounded-xl border border-saffron-500/20 my-2" id="rakLetterCardPreviewText">
+                                "Through every childhood memory and secret..."
+                            </p>
+                        </div>
+                        <div class="flex justify-between items-center text-[11px] font-semibold text-saffron-300 pt-2 border-t border-saffron-500/20">
+                            <span>From: <span id="previewRakSender">Priya</span></span>
+                            <span>To: <span id="previewRakReceiver">Rahul</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between max-w-md mx-auto pt-2">
+                    <button onclick="setRakhiStep(2)" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:underline">
+                        <i class="fas fa-arrow-left mr-1"></i> Back
+                    </button>
+                    <button onclick="generateAndShowLink('rakhi')" class="px-6 py-2.5 bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs rounded-xl transition shadow-lg flex items-center space-x-1.5">
+                        <span>✨ Generate Card Link</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= GIFT / BROTHER SENDER FLOW ================= -->
+        <section id="tab-gift-flow" class="tab-content hidden transition-all duration-300">
+            <!-- Navigation Steps Breadcrumb -->
+            <div class="flex items-center justify-center space-x-2 md:space-x-3 mb-6 overflow-x-auto py-2">
+                <button onclick="setGiftStep(1)" id="stepBtn-gft-1" class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition border border-saffron-500/30 whitespace-nowrap bg-saffron-500 text-maroon-950">
+                    1. 🎁 Return Gifts & Vouchers
+                </button>
+                <i class="fas fa-chevron-right text-[10px] text-saffron-500/40"></i>
+                <button onclick="setGiftStep(2)" id="stepBtn-gft-2" class="px-3.5 py-1.5 rounded-full text-xs font-semibold transition border border-saffron-500/30 opacity-60 whitespace-nowrap">
+                    2. ✉️ Letter & Wishes
+                </button>
+            </div>
+
+            <!-- Step 1: Return Gift Box & Vouchers -->
+            <div id="gift-step-1" class="gift-step space-y-6">
+                <div class="text-center max-w-lg mx-auto">
+                    <h2 class="font-royal text-xl md:text-2xl font-bold gold-text" id="giftStepHeaderTitle">Select Return Gifts & Vouchers</h2>
+                    <p class="text-xs text-saffron-100/70 mt-1">Select gift passes & promises for your sibling. (Optional step)</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
+                    <div onclick="toggleVoucher(0)" id="voucherCard-0" class="voucher-card glass-card p-4 rounded-2xl border-2 border-saffron-400 active-toggle-card cursor-pointer text-left transition flex flex-col justify-between">
+                        <div>
+                            <span class="text-3xl block mb-2">🍕</span>
+                            <h4 class="font-bold text-xs text-saffron-300">Foodie Treat Pass</h4>
+                            <p class="text-[10px] text-saffron-200/60 mt-1">Pizza / Cafe treat on me!</p>
+                        </div>
+                        <span id="voucherBadge-0" class="mt-3 text-xs font-bold text-saffron-400"><i class="fas fa-check-circle mr-1"></i> Selected</span>
+                    </div>
+
+                    <div onclick="toggleVoucher(1)" id="voucherCard-1" class="voucher-card glass-card p-4 rounded-2xl border-2 border-transparent cursor-pointer text-left transition flex flex-col justify-between">
+                        <div>
+                            <span class="text-3xl block mb-2">📺</span>
+                            <h4 class="font-bold text-xs text-saffron-300">TV Remote Monopoly</h4>
+                            <p class="text-[10px] text-saffron-200/60 mt-1">Full remote control for 1 week</p>
+                        </div>
+                        <span id="voucherBadge-1" class="mt-3 text-xs font-bold text-saffron-500/30"><i class="far fa-circle mr-1"></i> Unselected</span>
+                    </div>
+
+                    <div onclick="toggleVoucher(2)" id="voucherCard-2" class="voucher-card glass-card p-4 rounded-2xl border-2 border-transparent cursor-pointer text-left transition flex flex-col justify-between">
+                        <div>
+                            <span class="text-3xl block mb-2">🛍️</span>
+                            <h4 class="font-bold text-xs text-saffron-300">Shopping Spree Pass</h4>
+                            <p class="text-[10px] text-saffron-200/60 mt-1">Pick any gift, I pay!</p>
+                        </div>
+                        <span id="voucherBadge-2" class="mt-3 text-xs font-bold text-saffron-500/30"><i class="far fa-circle mr-1"></i> Unselected</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between max-w-md mx-auto pt-2">
+                    <button onclick="navigateTo('landing')" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:underline">
+                        <i class="fas fa-arrow-left mr-1"></i> Home
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="setGiftStep(2)" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:text-white">
+                            Skip
+                        </button>
+                        <button onclick="setGiftStep(2)" class="px-5 py-2.5 bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs rounded-xl transition shadow-lg flex items-center space-x-1.5">
+                            <span>Next: Letter & Wishes</span>
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Gift Envelope & Letter -->
+            <div id="gift-step-2" class="gift-step hidden space-y-6">
+                <div class="text-center max-w-lg mx-auto">
+                    <h2 class="font-royal text-xl md:text-2xl font-bold gold-text">Letter & Wishes Note</h2>
+                    <p class="text-xs text-saffron-100/70 mt-1">Write your letter note and attach a photo.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                                <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">Your Name:</label>
+                                <input id="gftSenderName" type="text" value="Rahul" class="w-full bg-maroon-900 border border-saffron-500/30 text-saffron-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-saffron-400">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">Receiver's Name:</label>
+                                <input id="gftReceiverName" type="text" value="Priya" class="w-full bg-maroon-900 border border-saffron-500/30 text-saffron-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-saffron-400">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">Letter Note:</label>
+                            <textarea id="gftLetterBody" rows="4" class="w-full bg-maroon-900 border border-saffron-500/30 text-saffron-100 rounded-xl p-3 text-xs focus:outline-none focus:border-saffron-400 leading-relaxed" placeholder="Write message...">To the best sister! Thank you for always standing by me. Here is your special return gift!</textarea>
+                        </div>
+
+                        <!-- Photo Attachment Section for Gift Flow -->
+                        <div class="pt-1">
+                            <label class="block text-[10px] font-bold text-saffron-300 uppercase tracking-wider mb-1">🖼️ Attach a Memory Photo (Optional):</label>
+                            <div class="flex items-center gap-2">
+                                <label class="cursor-pointer px-3 py-2 bg-saffron-500/20 border border-saffron-500/40 hover:bg-saffron-500/30 text-saffron-200 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
+                                    <i class="fas fa-camera"></i> Choose Photo
+                                    <input type="file" id="gftPhotoInput" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
+                                </label>
+                                <button id="removeGftPhotoBtn" onclick="removeAttachedPhoto()" class="hidden text-xs text-red-400 hover:underline">Remove</button>
+                            </div>
+                            <div id="gftPhotoPreviewBox" class="mt-2 hidden">
+                                <img id="gftPhotoPreviewImg" class="w-24 h-24 object-cover rounded-xl border border-saffron-400 shadow-md">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gift Box Preview -->
+                    <div class="glass-card p-6 rounded-3xl border border-saffron-400/40 text-center flex flex-col justify-between items-center">
+                        <div>
+                            <span class="font-royal text-sm gold-text block font-bold mb-3">Return Gift Box</span>
+                            <div class="w-24 h-24 mx-auto rounded-2xl bg-gradient-to-tr from-amber-600 to-red-600 flex items-center justify-center text-4xl shadow-2xl border-2 border-saffron-300 animate-pulse">
+                                🎁
+                            </div>
+                            <div class="mt-4 inline-block px-4 py-1.5 bg-saffron-500/20 rounded-full border border-saffron-400 text-saffron-300 text-xs font-bold">
+                                Special Return Gift Card
+                            </div>
+                        </div>
+
+                        <p class="text-[11px] text-saffron-200/70 italic mt-3">"Ready to send directly to your sibling!"</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between max-w-md mx-auto pt-2">
+                    <button onclick="setGiftStep(1)" class="px-4 py-2 text-xs font-medium text-saffron-300 hover:underline">
+                        <i class="fas fa-arrow-left mr-1"></i> Back
+                    </button>
+                    <button onclick="generateAndShowLink('gift')" class="px-6 py-2.5 bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs rounded-xl transition shadow-lg flex items-center space-x-1.5">
+                        <span>✨ Generate Card Link</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= RECIPIENT CARD VIEW & RITUAL CEREMONY ================= -->
+        <section id="tab-cardview" class="tab-content hidden transition-all duration-300">
+            <div class="max-w-3xl mx-auto space-y-6 text-center">
+                
+                <div class="glass-card p-6 md:p-8 rounded-3xl border border-saffron-400/50 shadow-2xl relative overflow-hidden">
+                    <div class="mb-4">
+                        <div class="inline-block px-3 py-1 bg-saffron-500/10 border border-saffron-500/30 rounded-full text-saffron-300 text-[10px] font-bold uppercase tracking-widest mb-1">
+                            Virtual Raksha Bandhan Ceremony
+                        </div>
+                        <h2 class="font-royal text-xl md:text-3xl font-extrabold gold-text" id="cardViewHeaderTitle">Shubh Raksha Bandhan</h2>
+                    </div>
+
+                    <!-- Interactive Pooja Thali Ceremony Stage -->
+                    <div id="ceremonyPhase1" class="py-4 space-y-5">
+                        <p class="text-xs text-saffron-100/80">Tap the Pooja Thali below to perform Aarti & receive your virtual Rakhi & Letter!</p>
+                        
+                        <!-- Interactive Thali Visual Container -->
+                        <div onclick="performThaliAarti()" id="interactiveThaliBox" class="w-64 h-64 mx-auto rounded-full border-4 border-saffron-400 bg-gradient-to-tr from-maroon-950 via-saffron-950 to-maroon-950 p-4 shadow-2xl flex flex-col items-center justify-center relative cursor-pointer group hover:scale-105 transition transform">
+                            <!-- Aarti Glow Ring -->
+                            <div id="aartiGlowRing" class="absolute inset-0 rounded-full border-2 border-saffron-400/0 transition-all duration-700"></div>
+
+                            <!-- Flickering Diya -->
+                            <div class="text-4xl flame-anim mb-1" id="thaliDiyaIcon">🪔</div>
+                            
+                            <!-- Kumkum & Rice Bowls -->
+                            <div class="flex space-x-3 my-1">
+                                <span class="text-xs bg-red-600/80 text-white px-2 py-0.5 rounded-full border border-saffron-300 shadow">🔴 Kumkum</span>
+                                <span class="text-xs bg-amber-100 text-maroon-950 px-2 py-0.5 rounded-full border border-saffron-400 shadow">🌾 Rice</span>
+                            </div>
+
+                            <!-- Selected Sweets Display -->
+                            <div id="thaliCeremonySweets" class="flex justify-center gap-1.5 my-2">
+                                <span class="text-2xl">🥮</span>
+                                <span class="text-2xl">🧆</span>
+                            </div>
+
+                            <span class="text-[10px] text-saffron-300/90 tracking-wider uppercase font-semibold mt-1 group-hover:gold-text">✨ Tap to Perform Ritual</span>
+                        </div>
+
+                        <div class="pt-2">
+                            <button onclick="performThaliAarti()" class="px-8 py-3.5 bg-gradient-to-r from-saffron-500 via-amber-500 to-warmRose text-maroon-950 font-extrabold text-xs md:text-sm rounded-full transition transform hover:scale-105 shadow-2xl flex items-center justify-center space-x-2 mx-auto">
+                                <span>🪔 Perform Aarti & Reveal Letter</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Phase 2: Revealed Letter, Photo & Gift Extras -->
+                    <div id="ceremonyPhase2" class="hidden space-y-5">
+                        <div class="flex items-center justify-between border-b border-saffron-500/20 pb-3">
+                            <div class="text-left">
+                                <span class="text-[9px] uppercase text-saffron-400 tracking-widest block font-bold">From:</span>
+                                <h3 id="displaySenderName" class="font-royal text-base font-bold text-white">Priya</h3>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[9px] uppercase text-saffron-400 tracking-widest block font-bold">To:</span>
+                                <h3 id="displayReceiverName" class="font-royal text-base font-bold text-white">Rahul</h3>
+                            </div>
+                        </div>
+
+                        <div id="displayMainVisual" class="py-2"></div>
+
+                        <!-- Display Attached Memory Photo -->
+                        <div id="displayPhotoBox" class="hidden py-1">
+                            <span class="text-[10px] text-saffron-300 uppercase tracking-widest block mb-1 font-bold">📷 Shared Sibling Memory</span>
+                            <img id="displayAttachedPhoto" class="max-h-64 rounded-2xl border-2 border-saffron-400 mx-auto shadow-2xl object-cover">
+                        </div>
+
+                        <!-- Written Letter Box -->
+                        <div class="bg-maroon-950/70 border border-saffron-500/30 rounded-2xl p-4 text-left relative">
+                            <i class="fas fa-quote-left text-lg text-saffron-500/20 absolute top-2 left-2"></i>
+                            <p id="displayLetterBody" class="font-serif italic text-xs md:text-sm text-saffron-100 leading-relaxed pt-2 px-3">
+                                Letter content...
+                            </p>
+                        </div>
+
+                        <div id="displayExtrasContainer" class="pt-1"></div>
+
+                        <!-- Action Controls after Reading -->
+                        <div class="pt-3 flex flex-wrap items-center justify-center gap-3">
+                            <button onclick="triggerConfetti()" class="px-4 py-2 rounded-xl bg-saffron-500/20 border border-saffron-400 text-saffron-300 font-semibold text-xs hover:bg-saffron-500/30 transition">
+                                ✨ Celebration Confetti
+                            </button>
+                            <button onclick="navigateTo('landing')" class="px-5 py-2 rounded-xl bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-bold text-xs transition shadow-md">
+                                🏠 Return to Home Page
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= SHARE MODAL ================= -->
+        <div id="shareModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div class="glass-card p-4 sm:p-6 rounded-3xl border border-saffron-400 max-w-md w-full text-center space-y-3 my-auto max-h-[88vh] overflow-y-auto">
+                <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-saffron-500/20 border border-saffron-400 text-saffron-400 text-xl sm:text-2xl flex items-center justify-center mx-auto">
+                    🎉
+                </div>
+                <h3 class="font-royal text-lg sm:text-xl font-bold gold-text">Virtual Card Ready!</h3>
+                <p class="text-[11px] sm:text-xs text-saffron-100/80">
+                    Share this 6-digit code with your sibling so they can open their card:
+                </p>
+
+                <!-- Prominent 6-Digit Code Display -->
+                <div class="bg-maroon-950/90 p-3 sm:p-4 rounded-2xl border-2 border-saffron-400/80 my-1 sm:my-2 shadow-inner">
+                    <span class="text-[10px] uppercase font-bold text-saffron-300 tracking-widest block mb-1">🔑 Your 6-Digit Card Code</span>
+                    <div id="share6DigitCodeDisplay" class="font-royal font-extrabold text-2xl sm:text-3xl tracking-[0.25em] text-amber-300 my-1 select-all">
+                        739214
+                    </div>
+                    <button onclick="copyRawCode()" class="mt-2 px-4 py-1.5 bg-saffron-500 hover:bg-saffron-400 text-maroon-950 font-extrabold text-xs rounded-xl transition shadow">
+                        <i class="fas fa-copy mr-1"></i> Copy 6-Digit Code
+                    </button>
+                    <input id="shareRawCodeInput" readonly type="text" class="sr-only">
+                </div>
+
+                <!-- Direct Link (Optional) -->
+                <div class="space-y-1 text-left pt-1">
+                    <label class="text-[10px] text-saffron-300/80 font-bold uppercase">Direct Link (Optional)</label>
+                    <div class="flex items-center gap-2 bg-maroon-950 p-2 rounded-xl border border-saffron-500/30">
+                        <input id="shareUrlInput" readonly type="text" class="w-full bg-transparent text-[11px] text-saffron-200 px-2 focus:outline-none">
+                        <button onclick="copyShareUrl()" class="px-3 py-1.5 bg-saffron-500/30 hover:bg-saffron-500/50 text-saffron-200 font-bold text-xs rounded-lg transition whitespace-nowrap">
+                            <i class="fas fa-link mr-1"></i> Copy Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Direct Share Button -->
+                <div class="pt-1 sm:pt-2">
+                    <button onclick="shareWhatsApp()" class="w-full py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg">
+                        <i class="fab fa-whatsapp text-lg"></i> Send Code on WhatsApp
+                    </button>
+                </div>
+
+                <!-- Go to Home Page & Preview Buttons -->
+                <div class="pt-2 border-t border-saffron-500/20 flex flex-wrap justify-between items-center gap-2">
+                    <button onclick="closeShareModal()" class="text-xs text-saffron-300/80 hover:underline">
+                        Close
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button onclick="previewGeneratedCard()" class="px-3.5 py-1.5 bg-saffron-500/20 border border-saffron-400 text-saffron-300 font-bold text-xs rounded-xl hover:bg-saffron-500/30 transition">
+                            👁️ Preview Card
+                        </button>
+                        <button onclick="closeShareModal(); navigateTo('landing');" class="px-3.5 py-1.5 bg-saffron-500 text-maroon-950 font-bold text-xs rounded-xl hover:bg-saffron-400 transition shadow">
+                            🏠 Home Page
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        const appState = {
+            relationship: 'sister-brother',
+            selectedRakhiIndex: 0,
+            threadColor: '#ef4444',
+            selectedSweets: ['Kaju Katli', 'Motichoor Laddoo'],
+            selectedVouchers: [0],
+            senderName: 'Priya',
+            receiverName: 'Rahul',
+            attachedPhoto: null,
+            loadedData: null,
+            currentCardCode: '739214',
+            currentCardData: null,
+            isGeneratingCode: false
+        };
+
+        /* SVG Rakhi Generators */
+        const RAKHI_SVGS = [
+            (color = '#ef4444') => `
+                <svg viewBox="0 0 160 160" class="w-full h-full drop-shadow">
+                    <path d="M 0 80 Q 40 65 80 80 T 160 80" stroke="${color}" stroke-width="5" fill="none" stroke-linecap="round"/>
+                    <circle cx="80" cy="80" r="32" fill="#b45309" stroke="#fef08a" stroke-width="2"/>
+                    <circle cx="80" cy="80" r="24" fill="#78350f"/>
+                    ${Array.from({length: 8}).map((_, i) => `
+                        <circle cx="${80 + 22 * Math.cos(i * Math.PI / 4)}" cy="${80 + 22 * Math.sin(i * Math.PI / 4)}" r="4" fill="#facc15"/>
+                    `).join('')}
+                    <circle cx="80" cy="80" r="12" fill="#dc2626" stroke="#ffffff" stroke-width="1.5"/>
+                </svg>
+            `,
+            (color = '#10b981') => `
+                <svg viewBox="0 0 160 160" class="w-full h-full drop-shadow">
+                    <path d="M 0 80 L 160 80" stroke="${color}" stroke-width="5" fill="none"/>
+                    <circle cx="80" cy="80" r="30" fill="#065f46" stroke="#facc15" stroke-width="2"/>
+                    <circle cx="80" cy="80" r="20" fill="#0284c7"/>
+                    <circle cx="80" cy="80" r="10" fill="#facc15"/>
+                </svg>
+            `,
+            (color = '#f59e0b') => `
+                <svg viewBox="0 0 160 160" class="w-full h-full drop-shadow">
+                    <path d="M 0 80 L 160 80" stroke="${color}" stroke-width="5"/>
+                    <g transform="translate(80,80)">
+                        ${Array.from({length: 10}).map((_, i) => `
+                            <ellipse cx="0" cy="-20" rx="6" ry="14" fill="#ea580c" transform="rotate(${i * 36})" />
+                        `).join('')}
+                        <circle cx="0" cy="0" r="12" fill="#facc15"/>
+                    </g>
+                </svg>
+            `,
+            (color = '#ec4899') => `
+                <svg viewBox="0 0 160 160" class="w-full h-full drop-shadow">
+                    <path d="M 0 80 L 160 80" stroke="${color}" stroke-width="4" stroke-dasharray="6,3"/>
+                    <polygon points="80,50 108,80 80,110 52,80" fill="#db2777" stroke="#fef08a" stroke-width="2"/>
+                    <circle cx="80" cy="80" r="6" fill="#ffffff"/>
+                </svg>
+            `
+        ];
+
+        /* Init on DOM Ready */
+        window.addEventListener('DOMContentLoaded', () => {
+            initParticleBackground();
+            renderRakhiGallery();
+            updateLiveRakhiPreview();
+            checkAndLoadCardFromUrl();
+        });
+
+        window.addEventListener('hashchange', checkAndLoadCardFromUrl);
+
+        function handlePhotoUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const maxDim = 320;
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > h) {
+                        if (w > maxDim) {
+                            h = Math.round((h * maxDim) / w);
+                            w = maxDim;
+                        }
+                    } else {
+                        if (h > maxDim) {
+                            w = Math.round((w * maxDim) / h);
+                            h = maxDim;
+                        }
+                    }
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    appState.attachedPhoto = canvas.toDataURL('image/jpeg', 0.6);
+                    
+                    showPhotoPreviews();
+                    showToast('Memory photo attached!', '🖼️');
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showPhotoPreviews() {
+            if (!appState.attachedPhoto) return;
+            ['rakPhoto', 'gftPhoto'].forEach(prefix => {
+                const box = document.getElementById(`${prefix}PreviewBox`);
+                const img = document.getElementById(`${prefix}PreviewImg`);
+                const btn = document.getElementById(`remove${prefix === 'rakPhoto' ? '' : 'Gft'}PhotoBtn`);
+                if (box && img) {
+                    img.src = appState.attachedPhoto;
+                    box.classList.remove('hidden');
+                }
+                if (btn) btn.classList.remove('hidden');
+            });
+
+            const cardImg = document.getElementById('cardPreviewPhotoImg');
+            const cardBox = document.getElementById('cardPreviewPhotoContainer');
+            if (cardImg && cardBox) {
+                cardImg.src = appState.attachedPhoto;
+                cardBox.classList.remove('hidden');
+            }
+        }
+
+        function removeAttachedPhoto() {
+            appState.attachedPhoto = null;
+            ['rakPhotoPreviewBox', 'gftPhotoPreviewBox', 'cardPreviewPhotoContainer'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            ['removePhotoBtn', 'removeGftPhotoBtn'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            showToast('Photo removed', '🗑️');
+        }
+
+        function performThaliAarti() {
+            const thali = document.getElementById('interactiveThaliBox');
+            const ring = document.getElementById('aartiGlowRing');
+            
+            if (thali && ring) {
+                ring.classList.add('border-saffron-400/80', 'animate-ping');
+                thali.classList.add('scale-105');
+            }
+
+            showToast('Performing Aarti & Applying Tilak...', '🪔');
+
+            setTimeout(() => {
+                if (thali) thali.classList.remove('scale-105');
+                if (ring) ring.classList.remove('border-saffron-400/80', 'animate-ping');
+                document.getElementById('ceremonyPhase1').classList.add('hidden');
+                document.getElementById('ceremonyPhase2').classList.remove('hidden');
+                triggerConfetti();
+            }, 1000);
+        }
+
+        function generate6DigitCode() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
+        async function generateAndShowLink(flowType) {
+            try {
+                appState.isGeneratingCode = true;
+                let data = {};
+                if (flowType === 'rakhi') {
+                    const senderEl = document.getElementById('rakSenderName');
+                    const receiverEl = document.getElementById('rakReceiverName');
+                    const letterEl = document.getElementById('rakLetterBody');
+
+                    data = {
+                        ft: 'rakhi',
+                        t: appState.relationship || 'sister-brother',
+                        s: senderEl ? senderEl.value : 'Priya',
+                        r: receiverEl ? receiverEl.value : 'Rahul',
+                        l: letterEl ? letterEl.value : 'Happy Raksha Bandhan!',
+                        rk: appState.selectedRakhiIndex || 0,
+                        c: appState.threadColor || '#ef4444',
+                        sw: [...(appState.selectedSweets || [])],
+                        p: appState.attachedPhoto || null
+                    };
+                } else {
+                    const senderEl = document.getElementById('gftSenderName');
+                    const receiverEl = document.getElementById('gftReceiverName');
+                    const letterEl = document.getElementById('gftLetterBody');
+
+                    data = {
+                        ft: 'gift',
+                        t: appState.relationship || 'brother-sister',
+                        s: senderEl ? senderEl.value : 'Rahul',
+                        r: receiverEl ? receiverEl.value : 'Priya',
+                        l: letterEl ? letterEl.value : 'Happy Raksha Bandhan!',
+                        vc: [...(appState.selectedVouchers || [])],
+                        p: appState.attachedPhoto || null
+                    };
+                }
+
+                const code = generate6DigitCode();
+                appState.currentCardCode = code;
+                appState.currentCardData = data;
+
+                if (window.saveCardToCloud) {
+                    await window.saveCardToCloud(code, data);
+                }
+
+                let baseUrl = window.location.href.split('#')[0];
+                if (!baseUrl || baseUrl.startsWith('about:') || baseUrl.startsWith('blob:')) {
+                    baseUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+                }
+                const fullUrl = `${baseUrl}#code=${code}`;
+
+                const codeDisplay = document.getElementById('share6DigitCodeDisplay');
+                const rawInput = document.getElementById('shareRawCodeInput');
+                const urlInput = document.getElementById('shareUrlInput');
+
+                if (codeDisplay) codeDisplay.innerText = code;
+                if (rawInput) rawInput.value = code;
+                if (urlInput) urlInput.value = fullUrl;
+
+                try {
+                    history.replaceState(null, '', `#code=${code}`);
+                } catch(e) {
+                    window.location.hash = `code=${code}`;
+                }
+
+                const modal = document.getElementById('shareModal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    const modalInner = modal.querySelector('.glass-card');
+                    if (modalInner) modalInner.scrollTop = 0;
+                }
+
+                showToast('Card code generated!', '✨');
+            } catch (err) {
+                console.error("Error generating card link:", err);
+                showToast('Error generating card. Please try again.', '⚠️');
+            } finally {
+                setTimeout(() => { appState.isGeneratingCode = false; }, 300);
+            }
+        }
+
+        function previewGeneratedCard() {
+            closeShareModal();
+            if (appState.currentCardData) {
+                renderCardFromData(appState.currentCardData);
+            }
+        }
+
+        function shareWhatsApp() {
+            const code = appState.currentCardCode || document.getElementById('shareRawCodeInput')?.value || '739214';
+            const sender = (appState.currentCardData && appState.currentCardData.s) ? appState.currentCardData.s : (appState.senderName || 'Your Sibling');
+            
+            let text = `🪔 *Shubh Raksha Bandhan!* 🪔\n\n`;
+            text += `${sender} has sent you a special Virtual Raksha Bandhan Card & Letter!\n\n`;
+            text += `🔑 *Your 6-Digit Code:* *${code}*\n\n`;
+            text += `📲 *How to open:* \n`;
+            text += `1. Open the Raksha Bandhan Web App\n`;
+            text += `2. Enter code *${code}* on the Home Page\n`;
+            text += `3. Click "Open Card" to perform Aarti & read your letter!\n\n`;
+            text += `Happy Raksha Bandhan! ❤️`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        }
+
+        function renderCardFromData(data) {
+            if (!data) {
+                showToast('Invalid or missing card data', '⚠️');
+                return;
+            }
+
+            appState.loadedData = data;
+
+            navigateTo('cardview');
+            document.getElementById('ceremonyPhase1').classList.remove('hidden');
+            document.getElementById('ceremonyPhase2').classList.add('hidden');
+
+            const thali = document.getElementById('interactiveThaliBox');
+            const ring = document.getElementById('aartiGlowRing');
+            if (thali) thali.classList.remove('scale-105', 'scale-110');
+            if (ring) ring.classList.remove('border-saffron-400/80', 'animate-ping');
+
+            document.getElementById('displaySenderName').innerText = data.s || 'Priya';
+            document.getElementById('displayReceiverName').innerText = data.r || 'Rahul';
+            document.getElementById('displayLetterBody').innerText = `"${data.l || 'Happy Raksha Bandhan!'}"`;
+
+            /* Display Memory Photo if Attached */
+            const photoBox = document.getElementById('displayPhotoBox');
+            const photoImg = document.getElementById('displayAttachedPhoto');
+            if (data.p && photoBox && photoImg) {
+                photoImg.src = data.p;
+                photoBox.classList.remove('hidden');
+            } else if (photoBox) {
+                photoBox.classList.add('hidden');
+            }
+
+            const visual = document.getElementById('displayMainVisual');
+            const extras = document.getElementById('displayExtrasContainer');
+
+            /* Sweets inside Ceremony Thali */
+            const thaliSweets = document.getElementById('thaliCeremonySweets');
+            const emojiMap = { 'Kaju Katli': '🥮', 'Motichoor Laddoo': '🧆', 'Gulab Jamun': '🍩' };
+            if (thaliSweets) {
+                const sweetList = data.sw || ['Kaju Katli', 'Motichoor Laddoo'];
+                thaliSweets.innerHTML = sweetList.map(s => `<span class="text-2xl">${emojiMap[s] || '🍬'}</span>`).join(' ');
+            }
+
+            const isRakhiCard = data.ft === 'rakhi' || data.rk !== undefined || (data.t && data.t.startsWith('sister'));
+
+            if (isRakhiCard) {
+                document.getElementById('cardViewHeaderTitle').innerText = "Virtual Rakhi Card";
+                visual.innerHTML = `<div class="w-32 h-32 mx-auto filter drop-shadow-xl">${RAKHI_SVGS[data.rk || 0](data.c || '#ef4444')}</div>`;
+                const sweetList = (data.sw || []).map(s => `<span class="px-3 py-1 bg-saffron-500/20 text-saffron-200 rounded-full text-xs font-semibold border border-saffron-500/30 shadow-sm">🍬 ${s}</span>`).join(' ');
+                extras.innerHTML = sweetList ? `<div class="flex flex-wrap justify-center gap-2 mt-2">${sweetList}</div>` : '';
+            } else {
+                document.getElementById('cardViewHeaderTitle').innerText = "Return Gift Card";
+                visual.innerHTML = `
+                    <div class="glass-card p-5 rounded-2xl max-w-xs mx-auto border border-saffron-400 text-center shadow-lg">
+                        <div class="text-4xl">🎁</div>
+                    </div>
+                `;
+                const voucherTitles = ['🍕 Foodie Treat Pass', '📺 TV Remote Monopoly', '🛍️ Shopping Spree Pass'];
+                const selectedVouchersList = (data.vc || []).map(vIdx => `<span class="px-3 py-1 bg-saffron-500/20 text-saffron-200 rounded-full text-xs font-semibold border border-saffron-500/30 shadow-sm">${voucherTitles[vIdx] || '🎁 Gift Voucher'}</span>`).join(' ');
+                extras.innerHTML = selectedVouchersList ? `<div class="flex flex-wrap justify-center gap-2 mt-2">${selectedVouchersList}</div>` : '';
+            }
+
+            showToast('Card Loaded Successfully!', '✉️');
+        }
+
+        function showToast(msg, icon = '✨') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            document.getElementById('toastIcon').innerText = icon;
+            toast.classList.remove('opacity-0', 'translate-y-20');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-20');
+            }, 3000);
+        }
+
+        function navigateTo(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            const target = document.getElementById(`tab-${tabId}`);
+            if (target) {
+                target.classList.remove('hidden');
+            }
+        }
+
+        function selectRelationshipFlow(type) {
+            appState.relationship = type;
+            document.querySelectorAll('.rel-card').forEach(card => card.classList.remove('active-toggle-card'));
+            const activeCard = document.getElementById(`relCard-${type}`);
+            if (activeCard) activeCard.classList.add('active-toggle-card');
+
+            const btnTextMap = {
+                'sister-brother': 'Start Sister to Brother Express',
+                'sister-sister': 'Start Sister to Sister Express',
+                'brother-sister': 'Start Brother to Sister Express',
+                'brother-brother': 'Start Brother to Brother Express'
+            };
+            document.getElementById('selectedFlowBtnText').innerText = btnTextMap[type] || 'Start Sibling Express';
+        }
+
+        function startSelectedFlow() {
+            const rel = appState.relationship;
+            if (rel === 'sister-brother') {
+                appState.senderName = 'Priya';
+                appState.receiverName = 'Rahul';
+                document.getElementById('rakSenderName').value = 'Priya';
+                document.getElementById('rakReceiverName').value = 'Rahul';
+                document.getElementById('rakhiStepHeaderTitle').innerText = 'Choose Virtual Rakhi for Brother';
+                navigateTo('rakhi-flow');
+                setRakhiStep(1);
+            } else if (rel === 'sister-sister') {
+                appState.senderName = 'Ananya';
+                appState.receiverName = 'Priya';
+                document.getElementById('rakSenderName').value = 'Ananya';
+                document.getElementById('rakReceiverName').value = 'Priya';
+                document.getElementById('rakhiStepHeaderTitle').innerText = 'Choose Sisterhood Rakhi / Band';
+                navigateTo('rakhi-flow');
+                setRakhiStep(1);
+            } else if (rel === 'brother-sister') {
+                appState.senderName = 'Rahul';
+                appState.receiverName = 'Priya';
+                document.getElementById('gftSenderName').value = 'Rahul';
+                document.getElementById('gftReceiverName').value = 'Priya';
+                document.getElementById('giftStepHeaderTitle').innerText = 'Select Return Gifts for Sister';
+                navigateTo('gift-flow');
+                setGiftStep(1);
+            } else if (rel === 'brother-brother') {
+                appState.senderName = 'Aman';
+                appState.receiverName = 'Rahul';
+                document.getElementById('gftSenderName').value = 'Aman';
+                document.getElementById('gftReceiverName').value = 'Rahul';
+                document.getElementById('giftStepHeaderTitle').innerText = 'Select Bro Gifts & Promises';
+                navigateTo('gift-flow');
+                setGiftStep(1);
+            }
+            updateLiveRakhiPreview();
+        }
+
+        function setRakhiStep(stepNum) {
+            document.querySelectorAll('.rakhi-step').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`rakhi-step-${stepNum}`).classList.remove('hidden');
+
+            for (let i = 1; i <= 3; i++) {
+                const btn = document.getElementById(`stepBtn-rak-${i}`);
+                if (i === stepNum) {
+                    btn.classList.add('bg-saffron-500', 'text-maroon-950');
+                    btn.classList.remove('opacity-60');
+                } else {
+                    btn.classList.remove('bg-saffron-500', 'text-maroon-950');
+                    btn.classList.add('opacity-60');
+                }
+            }
+        }
+
+        function setGiftStep(stepNum) {
+            document.querySelectorAll('.gift-step').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`gift-step-${stepNum}`).classList.remove('hidden');
+
+            for (let i = 1; i <= 2; i++) {
+                const btn = document.getElementById(`stepBtn-gft-${i}`);
+                if (i === stepNum) {
+                    btn.classList.add('bg-saffron-500', 'text-maroon-950');
+                    btn.classList.remove('opacity-60');
+                } else {
+                    btn.classList.remove('bg-saffron-500', 'text-maroon-950');
+                    btn.classList.add('opacity-60');
+                }
+            }
+        }
+
+        function renderRakhiGallery() {
+            for (let i = 0; i < RAKHI_SVGS.length; i++) {
+                const container = document.getElementById(`rakhiSvgContainer-${i}`);
+                if (container) {
+                    container.innerHTML = RAKHI_SVGS[i](appState.threadColor);
+                }
+            }
+        }
+
+        function selectRakhi(index) {
+            appState.selectedRakhiIndex = index;
+            document.querySelectorAll('.rakhi-card').forEach((card, idx) => {
+                if (idx === index) {
+                    card.classList.add('active-toggle-card');
+                    card.classList.remove('border-transparent');
+                } else {
+                    card.classList.remove('active-toggle-card');
+                    card.classList.add('border-transparent');
+                }
+            });
+            updateLiveRakhiPreview();
+        }
+
+        function changeThreadColor(colorHex) {
+            appState.threadColor = colorHex;
+            renderRakhiGallery();
+            updateLiveRakhiPreview();
+        }
+
+        function toggleSweet(name) {
+            const idx = appState.selectedSweets.indexOf(name);
+            if (idx > -1) {
+                appState.selectedSweets.splice(idx, 1);
+            } else {
+                appState.selectedSweets.push(name);
+            }
+
+            const card = document.getElementById(`sweetToggle-${name}`);
+            const badge = document.getElementById(`sweetBadge-${name}`);
+            if (appState.selectedSweets.includes(name)) {
+                card.classList.add('active-toggle-card');
+                card.classList.remove('border-transparent');
+                badge.innerHTML = `<i class="fas fa-check-circle text-base"></i>`;
+                badge.className = 'text-xs font-bold text-saffron-400';
+            } else {
+                card.classList.remove('active-toggle-card');
+                card.classList.add('border-transparent');
+                badge.innerHTML = `<i class="far fa-circle text-base"></i>`;
+                badge.className = 'text-xs font-bold text-saffron-500/30';
+            }
+
+            const container = document.getElementById('thaliSweetsPreview');
+            const emojiMap = { 'Kaju Katli': '🥮', 'Motichoor Laddoo': '🧆', 'Gulab Jamun': '🍩' };
+            container.innerHTML = appState.selectedSweets.map(s => `<span class="text-xl" title="${s}">${emojiMap[s] || '🍬'}</span>`).join('');
+        }
+
+        function applyRakTemplate(type) {
+            const area = document.getElementById('rakLetterBody');
+            if (type === 1) {
+                area.value = "Through every childhood memory and secret, you have been my forever protector and best friend! Happy Raksha Bandhan!";
+            } else if (type === 2) {
+                area.value = "Happy Rakhi to my favorite sibling who steals my chocolates and claims the TV remote! Love you always!";
+            }
+            updateLiveRakhiPreview();
+        }
+
+        function updateLiveRakhiPreview() {
+            const sender = document.getElementById('rakSenderName')?.value || 'Priya';
+            const receiver = document.getElementById('rakReceiverName')?.value || 'Rahul';
+            const letter = document.getElementById('rakLetterBody')?.value || 'Happy Raksha Bandhan!';
+
+            if (document.getElementById('previewRakSender')) document.getElementById('previewRakSender').innerText = sender;
+            if (document.getElementById('previewRakReceiver')) document.getElementById('previewRakReceiver').innerText = receiver;
+            if (document.getElementById('rakLetterCardPreviewText')) document.getElementById('rakLetterCardPreviewText').innerText = `"${letter}"`;
+
+            const iconContainer = document.getElementById('rakhiPreviewIcon');
+            if (iconContainer) {
+                iconContainer.innerHTML = RAKHI_SVGS[appState.selectedRakhiIndex](appState.threadColor);
+            }
+        }
+
+        document.getElementById('rakSenderName')?.addEventListener('input', updateLiveRakhiPreview);
+        document.getElementById('rakReceiverName')?.addEventListener('input', updateLiveRakhiPreview);
+        document.getElementById('rakLetterBody')?.addEventListener('input', updateLiveRakhiPreview);
+
+        function toggleVoucher(index) {
+            const pos = appState.selectedVouchers.indexOf(index);
+            if (pos > -1) {
+                appState.selectedVouchers.splice(pos, 1);
+            } else {
+                appState.selectedVouchers.push(index);
+            }
+
+            document.querySelectorAll('.voucher-card').forEach((card, idx) => {
+                const badge = document.getElementById(`voucherBadge-${idx}`);
+                if (appState.selectedVouchers.includes(idx)) {
+                    card.classList.add('active-toggle-card');
+                    card.classList.remove('border-transparent');
+                    badge.innerHTML = `<i class="fas fa-check-circle mr-1"></i> Selected`;
+                    badge.className = 'mt-3 text-xs font-bold text-saffron-400';
+                } else {
+                    card.classList.remove('active-toggle-card');
+                    card.classList.add('border-transparent');
+                    badge.innerHTML = `<i class="far fa-circle mr-1"></i> Unselected`;
+                    badge.className = 'mt-3 text-xs font-bold text-saffron-500/30';
+                }
+            });
+        }
+
+        function encodeCardData(data) {
+            try {
+                const jsonStr = JSON.stringify(data);
+                const bytes = new TextEncoder().encode(jsonStr);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            } catch (e) {
+                console.error(e);
+                return '';
+            }
+        }
+
+        function decodeCardData(encodedStr) {
+            try {
+                let base64 = encodedStr.trim().replace(/-/g, '+').replace(/_/g, '/');
+                while (base64.length % 4) {
+                    base64 += '=';
+                }
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                const jsonStr = new TextDecoder().decode(bytes);
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                console.error(e);
+                return null;
+            }
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.add('hidden');
+        }
+
+        function copyShareUrl() {
+            const input = document.getElementById('shareUrlInput');
+            input.select();
+            document.execCommand('copy');
+            showToast('Direct link copied!', '📋');
+        }
+
+        function copyRawCode() {
+            const input = document.getElementById('shareRawCodeInput');
+            input.select();
+            document.execCommand('copy');
+            showToast('6-digit code copied!', '🔑');
+        }
+
+        async function loadCardFromInput() {
+            const inputEl = document.getElementById('sharedCodeInput');
+            const val = inputEl ? inputEl.value.trim() : '';
+            if (!val) {
+                showToast('Please enter a 6-digit code or link', '⚠️');
+                return;
+            }
+
+            let code = val;
+            if (val.includes('code=')) {
+                code = val.split('code=')[1].split('&')[0];
+            } else if (val.includes('card=')) {
+                const legacyData = decodeCardData(val.split('card=')[1].split('&')[0]);
+                if (legacyData) {
+                    renderCardFromData(legacyData);
+                    return;
+                }
+            }
+
+            code = code.replace(/[^0-9a-zA-Z_-]/g, '');
+
+            showToast('Fetching card...', '⌛');
+
+            let cardData = null;
+            if (window.getCardFromCloud) {
+                cardData = await window.getCardFromCloud(code);
+            }
+
+            if (!cardData && code.length > 20) {
+                cardData = decodeCardData(code);
+            }
+
+            if (cardData) {
+                renderCardFromData(cardData);
+            } else {
+                showToast('Card code not found! Please check the 6 digits.', '❌');
+            }
+        }
+
+        async function checkAndLoadCardFromUrl() {
+            if (appState.isGeneratingCode) return;
+            if (window.location.hash) {
+                if (window.location.hash.includes('code=')) {
+                    const code = window.location.hash.split('code=')[1].split('&')[0];
+                    if (window.getCardFromCloud) {
+                        const cardData = await window.getCardFromCloud(code);
+                        if (cardData) renderCardFromData(cardData);
+                    }
+                } else if (window.location.hash.includes('card=')) {
+                    const code = window.location.hash.split('card=')[1].split('&')[0];
+                    const cardData = decodeCardData(code);
+                    if (cardData) renderCardFromData(cardData);
+                }
+            }
+        }
+
+        function initParticleBackground() {
+            const canvas = document.getElementById('particleCanvas');
+            const ctx = canvas.getContext('2d');
+            let w = canvas.width = window.innerWidth;
+            let h = canvas.height = window.innerHeight;
+
+            window.addEventListener('resize', () => {
+                w = canvas.width = window.innerWidth;
+                h = canvas.height = window.innerHeight;
+            });
+
+            const particles = Array.from({length: 22}).map(() => ({
+                x: Math.random() * w,
+                y: Math.random() * h,
+                size: Math.random() * 2.5 + 1,
+                speedY: -(Math.random() * 0.4 + 0.1),
+                opacity: Math.random() * 0.4 + 0.2,
+                symbol: ['✨', '🌸', '🪔'][Math.floor(Math.random() * 3)]
+            }));
+
+            function animate() {
+                ctx.clearRect(0, 0, w, h);
+                particles.forEach(p => {
+                    p.y += p.speedY;
+                    if (p.y < -20) p.y = h + 20;
+                    ctx.font = `${p.size * 5}px serif`;
+                    ctx.globalAlpha = p.opacity;
+                    ctx.fillText(p.symbol, p.x, p.y);
+                });
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        function triggerConfetti() {
+            confetti({
+                particleCount: 100,
+                spread: 75,
+                origin: { y: 0.6 },
+                colors: ['#f59e0b', '#d97706', '#be123c', '#10b981']
+            });
+        }
+    </script>
+</body>
+</html>
